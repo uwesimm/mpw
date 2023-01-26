@@ -106,8 +106,6 @@ fn main() -> Result<(), &'static str> {
         ('r', "com.lyndir.masterpassword.answer"),
     ]);
 
-    info!("masterpassword");
-
     let opt = Opt::from_args();
 
     debug!("template class {:?}", &opt.template);
@@ -176,6 +174,6 @@ fn main() -> Result<(), &'static str> {
     }
     let v_pw: String = v_pw.into_iter().collect();
 
-    info!("password for user={} site={} pw={}", user, site_name, v_pw);
+    info!("password for user {} and site {} is {}", user, site_name, v_pw);
     Ok(())
 }
