@@ -7,14 +7,14 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-simple_logger = "4.0.0"
+simple_logger = "5.0.0"
 structopt ="0.3.26"
-human-panic = "1.0.3"
-scrypt = "0.10.0"
+human-panic = "2.0.1"
+scrypt = "0.11.0"
 hmac = "0.12.1"
-sha2 = "0.10.6"
-rpassword = "7.2.0"
-log = "0.4.1"
+sha2 = "0.10.8"
+rpassword = "7.3.1"
+log = "0.4.22"
 
 [[bin]]
 name = "mpw"

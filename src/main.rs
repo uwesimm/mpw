@@ -1,5 +1,4 @@
-
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
 use hmac::Hmac;
 use hmac::Mac;
@@ -10,24 +9,25 @@ use scrypt::{scrypt, Params};
 use sha2::Sha256;
 use simple_logger::SimpleLogger;
 use structopt::StructOpt;
+use rpassword::prompt_password;
 
 #[derive(StructOpt)]
 struct Opt {
     /// template to use: x-extra,l-long,m-medium,s-short,n-normal,P-passphrase,b-basic
     #[structopt(short = "t", long = "template", default_value = "x")]
-    pub template: char,
+    template: char,
 
     /// count
     #[structopt(short = "c", long = "count", default_value = "1")]
-    pub count: u32,
+    count: u32,
 
     /// a=Authentication, l=Login, r=Recovery
     #[structopt(short = "k", long = "kind", default_value = "a")]
-    pub usage: char,
+    usage: char,
 
     /// optional context
     #[structopt(short = "x", long = "context", default_value = "")]
-    pub context: String,
+context: String,
 }
 
 fn u32_as_string(x: u32) -> String {
@@ -110,15 +110,15 @@ fn main() -> Result<(), &'static str> {
 
     debug!("template class {:?}", &opt.template);
 
-    let user = rpassword::prompt_password("user: ").unwrap();
-    let master_password = rpassword::prompt_password("password: ").unwrap();
-    let site_name = rpassword::prompt_password("site: ").unwrap();
+    let user = prompt_password("user: ").unwrap();
+    let master_password = prompt_password("password: ").unwrap();
+    let site_name = prompt_password("site: ").unwrap();
 
     let counter = opt.count;
 
     let base_seed = base_key.get(&opt.usage).expect("usage character not recognized");
 
-    let sparam = Params::new(15, 8, 2).unwrap();
+    let sparam = Params::new(15, 8, 2,64).unwrap();
     let salt = [
         String::from(*base_seed),
         u32_as_string(user.len() as u32),
@@ -165,7 +165,7 @@ fn main() -> Result<(), &'static str> {
     for i in 0..template.len() {
         let pass_chars = template_chars
             .get(&(template.chars().nth(i).unwrap()))
-            .unwrap();
+            .expect("template char #i not defined");
         let pw = pass_chars
             .chars()
             .nth(site_key[i + 1] as usize % pass_chars.len());
