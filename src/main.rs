@@ -8,26 +8,27 @@ use log::{debug, info};
 use scrypt::{scrypt, Params};
 use sha2::Sha256;
 use simple_logger::SimpleLogger;
-use structopt::StructOpt;
+use clap::Parser;
 use rpassword::prompt_password;
 
-#[derive(StructOpt)]
+#[derive(Parser)]
+#[command(name = "masterpassword")]
 struct Opt {
     /// template to use: x-extra,l-long,m-medium,s-short,n-normal,P-passphrase,b-basic
-    #[structopt(short = "t", long = "template", default_value = "x")]
+    #[arg(short = 't', long = "template", default_value = "x")]
     template: char,
 
     /// count
-    #[structopt(short = "c", long = "count", default_value = "1")]
+    #[arg(short = 'c', long = "count", default_value = "1")]
     count: u32,
 
     /// a=Authentication, l=Login, r=Recovery
-    #[structopt(short = "k", long = "kind", default_value = "a")]
+    #[arg(short = 'k', long = "kind", default_value = "a")]
     usage: char,
 
     /// optional context
-    #[structopt(short = "x", long = "context", default_value = "")]
-context: String,
+    #[arg(short = 'x', long = "context", default_value = "")]
+    context: String,
 }
 
 fn u32_as_string(x: u32) -> String {
@@ -106,7 +107,7 @@ fn main() -> Result<(), &'static str> {
         ('r', "com.lyndir.masterpassword.answer"),
     ]);
 
-    let opt = Opt::from_args();
+    let opt = Opt::parse();
 
     debug!("template class {:?}", &opt.template);
 
