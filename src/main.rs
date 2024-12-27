@@ -132,11 +132,10 @@ fn main() -> Result<(), &'static str> {
         &sparam,
         &mut master_key,
     );
-
-    let context = if opt.context == "" {
-        String::from("")
+    let context = if opt.context.is_empty() {
+        String::new()
     } else {
-        [u32_as_string(opt.context.len() as u32), opt.context].concat()
+        format!("{}{}", u32_as_string(opt.context.len() as u32), opt.context)
     };
 
     let site = [
