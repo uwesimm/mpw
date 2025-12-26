@@ -1,24 +1,24 @@
-// std::collections::HashMap is no longer needed (phf used for static maps)
+mod algorithm;
+mod web;
 
-use hmac::Hmac;
-use hmac::Mac;
-use human_panic::setup_panic;
-use log::LevelFilter;
-use log::{debug, info};
-use scrypt::{scrypt, Params};
-use sha2::Sha256;
-use simple_logger::SimpleLogger;
-use clap::Parser;
-use rpassword::prompt_password;
-use phf::phf_map;
 use anyhow::{Context, Result};
-
-// taken from https://masterpassword.app/masterpassword-algorithm.pdf
+use actix_web::{web as aw_web, App, HttpServer};
+use clap::Parser;
+use log::{debug, info, LevelFilter};
+use rpassword::prompt_password;
+use std::fs::File;
+use std::io::BufReader;
+use rustls::ServerConfig;
+use rustls_pki_types::{CertificateDer, PrivateKeyDer};
+use rustls_pki_types::pem::PemObject;
+use simple_logger::SimpleLogger;
+use web::{api_generate, index};
+use algorithm::generate_password;
 
 #[derive(Parser)]
 #[command(name = "masterpassword")]
 struct Opt {
-    /// template to use: x-extra,l-long,m-medium,s-short,n-normal,P-passphrase,b-basic
+    /// template to use: x-extra,l-long,m-medium,s-short,n-name,P-passphrase,p-pin,b-basic
     #[arg(short = 't', long = "template", default_value = "x")]
     template: char,
 
@@ -42,163 +42,81 @@ struct Opt {
 
     #[arg(short = 's', long = "site", default_value_t = String::new())]
     site: String,
+    /// start HTTP server
+    #[arg(long = "serve")]
+    serve: bool,
+    /// bind address for HTTP server 
+    #[arg(long = "bind", default_value = "127.0.0.1")]
+    bind: String,
+    /// port for HTTP server 
+    #[arg(long = "port", default_value_t = 8080)]
+    port: u16,
+    /// TLS certificate file (PEM). If provided together with --tls-key, server will use HTTPS.
+    #[arg(long = "tls-cert", default_value_t = String::new())]
+    tls_cert: String,
+    /// TLS private key file (PEM). If provided together with --tls-cert, server will use HTTPS.
+    #[arg(long = "tls-key", default_value_t = String::new())]
+    tls_key: String,
 }
-
-fn u32_as_string(x: u32) -> String {
-    let bytes = x.to_be_bytes().to_vec();
-    String::from_utf8(bytes).unwrap()
-}
-
-static BASE_KEY: phf::Map<char, &'static str> = phf_map! {
-    'a' => "com.lyndir.masterpassword",
-    'i' => "com.lyndir.masterpassword.login",
-    'r' => "com.lyndir.masterpassword.answer",
-};
-
-static TEMPLATE_CHARS: phf::Map<char, &'static str> = phf_map! {
-    ' ' => " ",
-    'V' => "AEIOU",
-    'C' => "BCDFGHJKLMNPQRSTVWXYZ",
-    'v' => "aeiou",
-    'c' => "bcdfghjklmnpqrstvwxyz",
-    'A' => "AEIOUBCDFGHJKLMNPQRSTVWXYZ",
-    'a' => "AEIOUaeiouBCDFGHJKLMNPQRSTVWXYZbcdfghjklmnpqrstvwxyz",
-    'n' => "0123456789",
-    'o' => "@&%?,=[]_:-+*$#!'^~;()/.",
-    'x' => "AEIOUaeiouBCDFGHJKLMNPQRSTVWXYZbcdfghjklmnpqrstvwxyz0123456789!@#$%^&*()",
-};
-
-static TEMPLATES: phf::Map<char, &'static [&'static str]> = phf_map! {
-    'x' => &["anoxxxxxxxxxxxxxxxxx", "axxxxxxxxxxxxxxxxxno"],
-    'p' => &["nnnn"],
-    'l' => &[
-        "CvcvnoCvcvCvcv",
-        "CvcvCvcvnoCvcv",
-        "CvcvCvcvCvcvno",
-        "CvccnoCvcvCvcv",
-        "CvccCvcvnoCvcv",
-        "CvccCvcvCvcvno",
-        "CvcvnoCvccCvcv",
-        "CvcvCvccnoCvcv",
-        "CvcvCvccCvcvno",
-        "CvcvnoCvcvCvcc",
-        "CvcvCvcvnoCvcc",
-        "CvcvCvcvCvccno",
-        "CvccnoCvccCvcv",
-        "CvccCvccnoCvcv",
-        "CvccCvccCvcvno",
-        "CvcvnoCvccCvcc",
-        "CvcvCvccnoCvcc",
-        "CvcvCvccCvccno",
-        "CvccnoCvcvCvcc",
-        "CvccCvcvnoCvcc",
-        "CvccCvcvCvccno",
-    ],
-    'm' => &["CvcnoCvc", "CvcCvcno"],
-    's' => &["Cvcn"],
-    'n' => &["cvccvcvcv"],
-    'b' => &["aaanaaan", "aannaaan", "aaannaaa"],
-    'P' => &[
-        "cvcc cvc cvccvcv cvc",
-        "cvc cvccvcvcv cvcv",
-        "cv cvccv cvc cvcvccv",
-    ],
-};
 
 fn main() -> Result<()> {
-    SimpleLogger::new().with_level(LevelFilter::Info).env().init().context("logger init failed")?;
-
-    setup_panic!();
+    SimpleLogger::new().with_level(LevelFilter::Info).init().context("logger init failed")?;
 
     let opt = Opt::parse();
 
-    debug!("template class {:?} {:?}", &opt.template,&opt.user);
+    if opt.serve {
+        let bind_addr = format!("{}:{}", opt.bind, opt.port);
+        if !opt.tls_cert.is_empty() && !opt.tls_key.is_empty() {
+            info!("starting HTTPS server at https://{}", bind_addr);
+            // load certificates using rustls-pki-types (keep DER wrappers)
+            let certs_iter = CertificateDer::pem_file_iter(&opt.tls_cert).context("reading tls certs")?;
+            let mut cert_chain: Vec<CertificateDer<'static>> = Vec::new();
+            for cert_res in certs_iter {
+                let cert = cert_res.context("parsing tls cert")?;
+                cert_chain.push(cert.to_owned());
+            }
 
-    let user = if opt.user.is_empty() { prompt_password("user: ").context("reading user")? } else {opt.user};
-    let master_password = if opt.password.is_empty() { prompt_password("password: ").context("reading password")? } else {opt.password};
-    let site_name = if opt.site.is_empty() { prompt_password("site: ").context("reading site")? } else {opt.site};
+            // load private key as a PrivateKeyDer (handles PKCS8 / PKCS1 / SEC1)
+            let key_der = PrivateKeyDer::from_pem_file(&opt.tls_key).context("reading tls key")?;
 
-    let counter = opt.count;
+            let config = ServerConfig::builder()
+                .with_no_client_auth()
+                .with_single_cert(cert_chain, key_der)
+                .context("creating rustls ServerConfig failed")?;
 
-    let pw = generate_password(&master_password, &user, &site_name, counter, &opt.context, opt.usage, opt.template, None)?;
+            let server = HttpServer::new(|| {
+                App::new()
+                    .route("/", aw_web::get().to(index))
+                    .route("/api/generate", aw_web::post().to(api_generate))
+            })
+            .bind_rustls(bind_addr.as_str(), config)?
+            .run();
 
-    info!("password for user {} and site {} is {}", user, site_name, pw);
-    Ok(())
-}
+            actix_web::rt::System::new().block_on(server).context("server failed")?;
+        } else {
+            info!("starting HTTP server at http://{}", bind_addr);
+            let server = HttpServer::new(|| {
+                App::new()
+                    .route("/", aw_web::get().to(index))
+                    .route("/api/generate", aw_web::post().to(api_generate))
+            })
+            .bind(bind_addr.as_str())?
+            .run();
 
-fn generate_password(
-    master_password: &str,
-    user: &str,
-    site_name: &str,
-    counter: u32,
-    context: &str,
-    usage: char,
-    template_char: char,
-    scrypt_params: Option<Params>,
-) -> Result<String> {
-    let base_seed = *BASE_KEY.get(&usage).ok_or_else(|| anyhow::anyhow!("usage character not recognized"))?;
-
-    let sparam = match scrypt_params {
-        Some(p) => p,
-        None => Params::new(15, 8, 2, 64).context("invalid scrypt params")?,
-    };
-
-    let salt = [String::from(base_seed), u32_as_string(user.len() as u32), user.to_string()].concat();
-    let mut master_key = [0u8; 64];
-    let  _ = scrypt(master_password.as_bytes(), salt.as_bytes(), &sparam, &mut master_key);
-
-    let ctx = if context.is_empty() { String::new() } else { format!("{}{}", u32_as_string(context.len() as u32), context) };
-
-    let site = [String::from(base_seed), u32_as_string(site_name.len() as u32), site_name.to_string(), u32_as_string(counter as u32), ctx].concat();
-
-    type HmacSha256 = Hmac<Sha256>;
-    let mut mac = HmacSha256::new_from_slice(&master_key).context("HMAC init failed")?;
-    mac.update(site.as_bytes());
-    let result = mac.finalize();
-    let site_key = result.into_bytes();
-    debug!("site seed {:?}", site_key);
-
-    let templates_for_set = *TEMPLATES.get(&template_char).ok_or_else(|| anyhow::anyhow!("template not available"))?;
-    let idx = (site_key[0] as usize) % templates_for_set.len();
-    let template = templates_for_set[idx];
-    debug!("selected template {:?}", template);
-
-    let mut v_pw = Vec::with_capacity(template.len());
-    for i in 0..template.len() {
-        let ch = template.chars().nth(i).unwrap();
-        let pass_chars = *TEMPLATE_CHARS.get(&ch).ok_or_else(|| anyhow::anyhow!("template char #i not defined"))?;
-        let pw = pass_chars.chars().nth(site_key[i + 1] as usize % pass_chars.len());
-        debug!("select char {:?} {:?} {:?}", i, pass_chars, pw);
-        v_pw.push(pw.ok_or_else(|| anyhow::anyhow!("char selection none"))?);
-    }
-
-    Ok(v_pw.into_iter().collect())
-}
-#[cfg(test)]
-mod tests {
-        use super::*;
-    #[test]
-    fn test_u32_as_string_small_values() {
-        for &x in &[0u32, 1u32, 3u32, 127u32] {
-            let s = u32_as_string(x);
-            assert_eq!(s.as_bytes(), &x.to_be_bytes());
+            actix_web::rt::System::new().block_on(server).context("server failed")?;
         }
-    }
+    } else {
+        debug!("template class {:?} {:?}", &opt.template, &opt.user);
 
-    #[test]
-    fn deterministic_small_params() {
-        // use reduced scrypt params so test runs quickly
-        let params = Params::new(8, 1, 1, 64).unwrap();
-        let pw1 = generate_password("password", "bob", "mysite", 1, "", 'a', 'p', Some(params)).unwrap();
-        let pw2 = generate_password("password", "bob", "mysite", 1, "", 'a', 'p', Some(Params::new(8, 1, 1, 64).unwrap())).unwrap();
-        assert_eq!(pw1, pw2);
-        assert_eq!(pw1.len(), 4);
-        assert!(pw1.chars().all(|c| c.is_ascii_digit()));
+        let user = if opt.user.is_empty() { prompt_password("user: ").context("reading user")? } else {opt.user};
+        let master_password = if opt.password.is_empty() { prompt_password("password: ").context("reading password")? } else {opt.password};
+        let site_name = if opt.site.is_empty() { prompt_password("site: ").context("reading site")? } else {opt.site};
+
+        let counter = opt.count;
+
+        let pw = generate_password(&master_password, &user, &site_name, counter, &opt.context, opt.usage, opt.template, None)?;
+
+        info!("password for user {} and site {} is {}", user, site_name, pw);
     }
-        #[test]
-    fn full_mpw() {
-        // use reduced scrypt params so test runs quickly
-        let pw1 = generate_password("1", "1", "1", 1, "", 'a', 'x',None).unwrap();
-        assert_eq!(pw1, "FLCUCf7B7TqqT*7Qdk8&");
-    }
+    Ok(())
 }
