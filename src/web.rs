@@ -11,14 +11,26 @@ pub async fn index() -> impl Responder {
   <h1>Generate Password</h1>
   <form id="f">
     <label>user: <input name="user" value="alice"></label><br>
-    <label>password: <input name="master_password" value="password"></label><br>
+    <label>password: <input id="master_password" name="master_password" type="password" value="password"></label>
+    <button type="button" id="togglePassword">Show</button><br>
     <label>site: <input name="site_name" value="example.com"></label><br>
     <label>template: <input name="template" value="x"></label><br>
     <label>usage: <input name="usage" value="a"></label><br>
-    <button type="button" onclick="send()">Generate</button>
+    <button type="button" id="generateBtn">Generate</button>
   </form>
   <pre id="out"></pre>
   <script>
+  function togglePassword(){
+    const inp = document.getElementById('master_password');
+    const btn = document.getElementById('togglePassword');
+    if(inp.type === 'password'){
+      inp.type = 'text';
+      btn.textContent = 'Hide';
+    } else {
+      inp.type = 'password';
+      btn.textContent = 'Show';
+    }
+  }
   async function send(){
     const f = document.getElementById('f');
     const data = new FormData(f);
@@ -27,6 +39,12 @@ pub async fn index() -> impl Responder {
     const j = await res.json();
     document.getElementById('out').textContent = JSON.stringify(j, null, 2);
   }
+  document.addEventListener('DOMContentLoaded', function(){
+    const toggle = document.getElementById('togglePassword');
+    if(toggle) toggle.addEventListener('click', togglePassword);
+    const gen = document.getElementById('generateBtn');
+    if(gen) gen.addEventListener('click', send);
+  });
   </script>
 </body>
 </html>

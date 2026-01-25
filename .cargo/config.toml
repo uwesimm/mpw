@@ -1,0 +1,5 @@
+[env]
+RANLIB = "/usr/bin/ranlib"
+
+[target.aarch64-apple-darwin]
+ar = "/usr/bin/ar"

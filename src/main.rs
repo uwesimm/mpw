@@ -8,8 +8,11 @@ use log::{debug, info, LevelFilter};
 use rpassword::prompt_password;
 use std::fs::File;
 use std::io::BufReader;
+#[cfg(feature = "tls")]
 use rustls::ServerConfig;
+#[cfg(feature = "tls")]
 use rustls_pki_types::{CertificateDer, PrivateKeyDer};
+#[cfg(feature = "tls")]
 use rustls_pki_types::pem::PemObject;
 use simple_logger::SimpleLogger;
 use web::{api_generate, index};
@@ -67,32 +70,39 @@ fn main() -> Result<()> {
     if opt.serve {
         let bind_addr = format!("{}:{}", opt.bind, opt.port);
         if !opt.tls_cert.is_empty() && !opt.tls_key.is_empty() {
-            info!("starting HTTPS server at https://{}", bind_addr);
-            // load certificates using rustls-pki-types (keep DER wrappers)
-            let certs_iter = CertificateDer::pem_file_iter(&opt.tls_cert).context("reading tls certs")?;
-            let mut cert_chain: Vec<CertificateDer<'static>> = Vec::new();
-            for cert_res in certs_iter {
-                let cert = cert_res.context("parsing tls cert")?;
-                cert_chain.push(cert.to_owned());
+            #[cfg(feature = "tls")]
+            {
+                info!("starting HTTPS server at https://{}", bind_addr);
+                // load certificates using rustls-pki-types (keep DER wrappers)
+                let certs_iter = CertificateDer::pem_file_iter(&opt.tls_cert).context("reading tls certs")?;
+                let mut cert_chain: Vec<CertificateDer<'static>> = Vec::new();
+                for cert_res in certs_iter {
+                    let cert = cert_res.context("parsing tls cert")?;
+                    cert_chain.push(cert.to_owned());
+                }
+
+                // load private key as a PrivateKeyDer (handles PKCS8 / PKCS1 / SEC1)
+                let key_der = PrivateKeyDer::from_pem_file(&opt.tls_key).context("reading tls key")?;
+
+                let config = ServerConfig::builder()
+                    .with_no_client_auth()
+                    .with_single_cert(cert_chain, key_der)
+                    .context("creating rustls ServerConfig failed")?;
+
+                let server = HttpServer::new(|| {
+                    App::new()
+                        .route("/", aw_web::get().to(index))
+                        .route("/api/generate", aw_web::post().to(api_generate))
+                })
+                .bind_rustls(bind_addr.as_str(), config)?
+                .run();
+
+                actix_web::rt::System::new().block_on(server).context("server failed")?;
             }
-
-            // load private key as a PrivateKeyDer (handles PKCS8 / PKCS1 / SEC1)
-            let key_der = PrivateKeyDer::from_pem_file(&opt.tls_key).context("reading tls key")?;
-
-            let config = ServerConfig::builder()
-                .with_no_client_auth()
-                .with_single_cert(cert_chain, key_der)
-                .context("creating rustls ServerConfig failed")?;
-
-            let server = HttpServer::new(|| {
-                App::new()
-                    .route("/", aw_web::get().to(index))
-                    .route("/api/generate", aw_web::post().to(api_generate))
-            })
-            .bind_rustls(bind_addr.as_str(), config)?
-            .run();
-
-            actix_web::rt::System::new().block_on(server).context("server failed")?;
+            #[cfg(not(feature = "tls"))]
+            {
+                return Err(anyhow::anyhow!("TLS support not compiled in; rebuild with '--features tls'"));
+            }
         } else {
             info!("starting HTTP server at http://{}", bind_addr);
             let server = HttpServer::new(|| {
