@@ -1,5 +1,5 @@
 use actix_web::{test, App};
-use mpw::{api_generate, index};
+use mpw::api_generate;
 use actix_web::body::to_bytes;
 use serde_json::json;
 
