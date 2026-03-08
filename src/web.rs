@@ -76,7 +76,15 @@ pub async fn api_generate(req: web::Json<ApiRequest>) -> impl Responder {
     let template = r.template.unwrap_or('x');
 
     match generate_password(&r.master_password, &r.user, &r.site_name, counter, &context, usage, template, None) {
-        Ok(pw) => HttpResponse::Ok().json(ApiResponse { password: pw }),
-        Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
+        Ok(pw) => HttpResponse::Ok()
+            .insert_header(("Access-Control-Allow-Origin", "*"))
+            .insert_header(("Access-Control-Allow-Methods", "POST, OPTIONS"))
+            .insert_header(("Access-Control-Allow-Headers", "Content-Type"))
+            .json(ApiResponse { password: pw }),
+        Err(e) => HttpResponse::InternalServerError()
+            .insert_header(("Access-Control-Allow-Origin", "*"))
+            .insert_header(("Access-Control-Allow-Methods", "POST, OPTIONS"))
+            .insert_header(("Access-Control-Allow-Headers", "Content-Type"))
+            .body(e.to_string()),
     }
 }

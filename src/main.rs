@@ -6,8 +6,7 @@ use actix_web::{web as aw_web, App, HttpServer};
 use clap::Parser;
 use log::{debug, info, LevelFilter};
 use rpassword::prompt_password;
-use std::fs::File;
-use std::io::BufReader;
+
 #[cfg(feature = "tls")]
 use rustls::ServerConfig;
 #[cfg(feature = "tls")]
