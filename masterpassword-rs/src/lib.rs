@@ -96,7 +96,7 @@ pub fn generate_password(
 
     let ctx = if context.is_empty() { String::new() } else { format!("{}{}", u32_as_string(context.len() as u32), context) };
 
-    let site = [String::from(base_seed), u32_as_string(site_name.len() as u32), site_name.to_string(), u32_as_string(counter as u32), ctx].concat();
+    let site = [String::from(base_seed), u32_as_string(site_name.len() as u32), site_name.to_string(), u32_as_string(counter), ctx].concat();
 
     type HmacSha256 = Hmac<Sha256>;
     let mut mac = HmacSha256::new_from_slice(&master_key).context("HMAC init failed")?;

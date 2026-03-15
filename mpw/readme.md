@@ -8,12 +8,19 @@ This is a rust implementation of the masterpassword algorithm (see https://en.wi
 Usage: mpw [OPTIONS]
 
 Options:
-  -t, --template <TEMPLATE>  template to use: x-extra,l-long,m-medium,s-short,n-normal,P-passphrase,b-basic [default: x]
+  -t, --template <TEMPLATE>  template to use: x-extra,l-long,m-medium,s-short,n-name,P-passphrase,p-pin,b-basic [default: x]
   -c, --count <COUNT>        count [default: 1]
   -k, --kind <USAGE>         a=Authentication, l=Login, r=Recovery [default: a]
-  -x, --context <CONTEXT>    optional context [default: ]
+  -x, --context <CONTEXT>    optional context [default: ""]
+  -u, --user <USER>          [default: ""]
+  -p, --password <PASSWORD>  [default: ""]
+  -s, --site <SITE>          [default: ""]
+      --serve                start HTTP server
+      --bind <BIND>          bind address for HTTP server [default: 127.0.0.1]
+      --port <PORT>          port for HTTP server [default: 8080]
+      --tls-cert <TLS_CERT>  TLS certificate file (PEM). If provided together with --tls-key, server will use HTTPS [default: ""]
+      --tls-key <TLS_KEY>    TLS private key file (PEM). If provided together with --tls-cert, server will use HTTPS [default: ""]
   -h, --help                 Print help
-uwe@uwes-macbook-air mpw % 
 ```
 
 ## Build
