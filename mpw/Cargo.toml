@@ -4,6 +4,10 @@ version = "0.2.0"
 authors = ["Uwe Simm <uwe.simm@gmx.net>"]
 edition = "2021"
 
+[features]
+default = []
+tls = ["actix-web/rustls", "rustls", "rustls-pki-types"]
+
 [dependencies]
 simple_logger = "5.2.0"
 rpassword = "7.4.0"
@@ -12,3 +16,11 @@ clap = { version = "4.5.60", features = ["derive"] }
 anyhow = "1.0.102"
 actix-web = { version = "4.13.0", default-features = false, features = ["macros"] }
 masterpassword-rs = { path = "../masterpassword-rs" }
+serde = { version = "1.0", features = ["derive"] }
+rustls = { version = "0.23", optional = true, default-features = false }
+rustls-pki-types = { version = "1", optional = true }
+
+[dev-dependencies]
+assert_cmd = "2"
+predicates = "3"
+serde_json = "1"

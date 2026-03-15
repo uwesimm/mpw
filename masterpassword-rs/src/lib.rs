@@ -7,6 +7,9 @@ use anyhow::Result;
 use phf::phf_map;
 use log::debug;
 
+/// Base keys for the Master Password algorithm.
+/// Values from https://github.com/Lyndir/masterpassword/blob/master/lib/masterpassword.py
+/// 'a' = Authentication, 'i' = Login, 'r' = Recovery question
 static BASE_KEY: phf::Map<char, &'static str> = phf_map! {
     'a' => "com.lyndir.masterpassword",
     'i' => "com.lyndir.masterpassword.login",
@@ -68,11 +71,26 @@ static TEMPLATES: phf::Map<char, &'static [&'static str]> = phf_map! {
 };
 
 fn u32_as_string(x: u32) -> String {
-    let bytes = x.to_be_bytes().to_vec();
-    String::from_utf8(bytes).unwrap()
+    String::from_utf8(x.to_be_bytes().to_vec()).expect("u32 always produces valid UTF-8")
 }
 
 /// Generate a password using the Master Password algorithm.
+/// Generate a password using the Master Password algorithm.
+///
+/// # Usage characters
+/// - 'a': Authentication (default)
+/// - 'i': Login
+/// - 'r': Recovery question
+///
+/// # Template characters
+/// - 'x': Extra complex (default)
+/// - 'l': Long
+/// - 'm': Medium
+/// - 's': Short
+/// - 'n': Name-like
+/// - 'b': Basic
+/// - 'P': Passphrase
+/// - 'p': Pin (numeric only)
 pub fn generate_password(
     master_password: &str,
     user: &str,
@@ -83,7 +101,11 @@ pub fn generate_password(
     template_char: char,
     scrypt_params: Option<Params>,
 ) -> Result<String> {
-    let base_seed = *BASE_KEY.get(&usage).ok_or_else(|| anyhow::anyhow!("usage character not recognized"))?;
+    let base_seed = *BASE_KEY.get(&usage)
+        .ok_or_else(|| anyhow::anyhow!(
+            "usage character '{}' not recognized. Valid options: 'a' (Authentication), 'i' (Login), 'r' (Recovery)",
+            usage
+        ))?;
 
     let sparam = match scrypt_params {
         Some(p) => p,
@@ -105,7 +127,11 @@ pub fn generate_password(
     let site_key = result.into_bytes();
     debug!("site seed {:?}", site_key);
 
-    let templates_for_set = *TEMPLATES.get(&template_char).ok_or_else(|| anyhow::anyhow!("template not available"))?;
+    let templates_for_set = *TEMPLATES.get(&template_char)
+        .ok_or_else(|| anyhow::anyhow!(
+            "template '{}' not recognized. Valid: x=extra, l=long, m=medium, s=short, n=name, b=basic, P=passphrase, p=pin",
+            template_char
+        ))?;
     let idx = (site_key[0] as usize) % templates_for_set.len();
     let template = templates_for_set[idx];
     debug!("selected template {:?}", template);

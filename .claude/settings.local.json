@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo clippy:*)",
+      "Bash(cargo dev-cargo-check:*)",
+      "Bash(cargo check:*)",
+      "Bash(cd:*)",
+      "Bash(cargo test:*)"
+    ]
+  }
+}

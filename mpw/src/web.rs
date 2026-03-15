@@ -1,6 +1,6 @@
 use actix_web::{web, HttpResponse, Responder};
 use serde::{Deserialize, Serialize};
-use crate::generate_password;
+use masterpassword_rs::generate_password;
 
 pub async fn index() -> impl Responder {
     const HTML: &str = r#"
@@ -53,14 +53,29 @@ pub async fn index() -> impl Responder {
 }
 
 #[derive(Deserialize)]
+#[serde(default)]
 pub struct ApiRequest {
     pub master_password: String,
     pub user: String,
     pub site_name: String,
-    pub counter: Option<u32>,
-    pub context: Option<String>,
-    pub usage: Option<char>,
-    pub template: Option<char>,
+    pub counter: u32,
+    pub context: String,
+    pub usage: char,
+    pub template: char,
+}
+
+impl Default for ApiRequest {
+    fn default() -> Self {
+        Self {
+            master_password: String::new(),
+            user: String::new(),
+            site_name: String::new(),
+            counter: 1,
+            context: String::new(),
+            usage: 'a',
+            template: 'x',
+        }
+    }
 }
 
 #[derive(Serialize)]
@@ -70,12 +85,8 @@ pub struct ApiResponse {
 
 pub async fn api_generate(req: web::Json<ApiRequest>) -> impl Responder {
     let r = req.into_inner();
-    let counter = r.counter.unwrap_or(1);
-    let context = r.context.unwrap_or_default();
-    let usage = r.usage.unwrap_or('a');
-    let template = r.template.unwrap_or('x');
 
-    match generate_password(&r.master_password, &r.user, &r.site_name, counter, &context, usage, template, None) {
+    match generate_password(&r.master_password, &r.user, &r.site_name, r.counter, &r.context, r.usage, r.template, None) {
         Ok(pw) => HttpResponse::Ok()
             .insert_header(("Access-Control-Allow-Origin", "*"))
             .insert_header(("Access-Control-Allow-Methods", "POST, OPTIONS"))

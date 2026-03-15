@@ -1,8 +1,10 @@
 # Masterpassword
 
-This is a rust implementation of the masterpassword algorithm (see https://en.wikipedia.org/wiki/Master_Password_(algorithm) ).
+A Rust implementation of the Master Password algorithm (see https://en.wikipedia.org/wiki/Master_Password_(algorithm) and https://github.com/Lyndir/masterpassword).
 
-## usage:
+## Usage
+
+```
 
 ```
 Usage: mpw [OPTIONS]
@@ -19,9 +21,21 @@ Options:
       --bind <BIND>          bind address for HTTP server [default: 127.0.0.1]
       --port <PORT>          port for HTTP server [default: 8080]
       --tls-cert <TLS_CERT>  TLS certificate file (PEM). If provided together with --tls-key, server will use HTTPS [default: ""]
-      --tls-key <TLS_KEY>    TLS private key file (PEM). If provided together with --tls-cert, server will use HTTPS [default: ""]
-  -h, --help                 Print help
+      --tls-key <TLS_KEY>      TLS private key file (PEM). If provided together with --tls-cert, server will use HTTPS [default: ""]
+  -h, --help                   Print help
+  -V, --version                Print version
 ```
+
+## Environment Variables
+
+- `MPW_MASTER_PASSWORD`: Set master password for non-interactive use (CI/CD). Overrides `--password` flag.
+
+## Error Messages
+
+The application now provides detailed error messages when invalid options are provided:
+
+- Invalid template: `template 'z' not recognized. Valid: x=extra, l=long, m=medium, s=short, n=name, b=basic, P=passphrase, p=pin`
+- Invalid usage: `usage character 'x' not recognized. Valid options: 'a' (Authentication), 'i' (Login), 'r' (Recovery)`
 
 ## Build
 

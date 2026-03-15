@@ -14,10 +14,11 @@ use rustls_pki_types::{CertificateDer, PrivateKeyDer};
 use rustls_pki_types::pem::PemObject;
 use simple_logger::SimpleLogger;
 use web::{api_generate, index};
-use crate::generate_password;
+use masterpassword_rs::generate_password;
 
 #[derive(Parser)]
 #[command(name = "masterpassword")]
+#[command(version = env!("CARGO_PKG_VERSION"))]
 struct Opt {
     /// template to use: x-extra,l-long,m-medium,s-short,n-name,P-passphrase,p-pin,b-basic
     #[arg(short = 't', long = "template", default_value = "x")]
@@ -116,9 +117,21 @@ fn main() -> Result<()> {
     } else {
         debug!("template class {:?} {:?}", &opt.template, &opt.user);
 
-        let user = if opt.user.is_empty() { prompt_password("user: ").context("reading user")? } else {opt.user};
-        let master_password = if opt.password.is_empty() { prompt_password("password: ").context("reading password")? } else {opt.password};
-        let site_name = if opt.site.is_empty() { prompt_password("site: ").context("reading site")? } else {opt.site};
+        let user = if opt.user.is_empty() { prompt_password("user: ").context("reading user")? } else { opt.user };
+
+        // Use env var or prompt for master password
+        let master_password = match std::env::var("MPW_MASTER_PASSWORD") {
+            Ok(pw) => pw,
+            Err(_) => {
+                if opt.password.is_empty() {
+                    prompt_password("password: ").context("reading password")?
+                } else {
+                    opt.password
+                }
+            }
+        };
+
+        let site_name = if opt.site.is_empty() { prompt_password("site: ").context("reading site")? } else { opt.site };
 
         let counter = opt.count;
 
