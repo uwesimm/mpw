@@ -142,7 +142,7 @@ cargo build --release --features tls
 
 ## Master Password Algorithm
 
-This implementation follows the [Master Password algorithm](https://matasano.com/blog/masterpasswords/) developed by Ryan Jamrich. The algorithm generates the same password every time for the same combination of:
+This implementation follows the [Master Password algorithm](hhttps://en.wikipedia.org/wiki/Master_Password_(algorithm)) developed by  Maarten Billemont. The algorithm generates the same password every time for the same combination of:
 - Master password
 - User identifier
 - Site name
