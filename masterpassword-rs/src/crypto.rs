@@ -6,7 +6,7 @@ use sha2::Sha256;
 use crate::templates::{BASE_KEY, TEMPLATE_CHARS, TEMPLATES};
 
 /// Convert a u32 to a 4‑byte big‑endian string.
-pub(crate) pub(crate) fn u32_as_string(x: u32) -> String {
+pub(crate) fn u32_as_string(x: u32) -> String {
     // Use lossless conversion; invalid UTF‑8 bytes become the Unicode replacement character.
     String::from_utf8_lossy(&x.to_be_bytes()).into_owned()
 }
