@@ -5,7 +5,8 @@
       "Bash(cargo dev-cargo-check:*)",
       "Bash(cargo check:*)",
       "Bash(cd:*)",
-      "Bash(cargo test:*)"
+      "Bash(cargo test:*)",
+      "Skill(commit-commands:commit)"
     ]
   }
 }

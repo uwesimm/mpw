@@ -134,6 +134,46 @@ Generate a password via JSON:
 
 ## Building with TLS
 
+```bash
+cargo build --release --features tls
+```
+
+---
+
+## Architecture Overview
+
+- **CLI mode**: Parses command‑line arguments with `clap`, prompts for missing values, calls `masterpassword_rs::generate_password`, and prints the result.
+- **HTTP server mode**: Uses **Actix‑Web** to expose two routes:
+  - `GET /` – serves a static HTML page with a simple password‑generation form.
+  - `POST /api/generate` – accepts a JSON payload and returns a generated password.
+- TLS can be enabled via `--tls-cert` and `--tls-key` flags; this requires building with the `tls` Cargo feature.
+- The core password‑generation logic lives in the separate crate `masterpassword_rs` and is reused by both CLI and server paths.
+
+## Security Considerations
+
+- **Local‑only default** – the server binds to `127.0.0.1` and does not require authentication. This is sufficient for personal use.
+- **Public exposure** – if the server is ever bound to a public interface, enable TLS (`--features tls`) and consider adding an authentication layer (e.g., HTTP basic auth or a secret token) before exposing the API.
+- **Password handling** – the master password is read from the environment variable `MPW_MASTER_PASSWORD` or via a prompt; it is never written to disk or logged.
+- **Transport security** – when TLS is enabled, the master password and generated passwords travel over an encrypted channel.
+- **Dependency hygiene** – only the following runtime dependencies are used: `actix-web`, `clap`, `simple_logger`, `log`, `rpassword`, `anyhow`, `serde`, and the internal `masterpassword_rs`. No unnecessary crates are pulled in.
+
+## Code Quality
+
+- Uses idiomatic Rust error handling with `anyhow`.
+- Separation of concerns: CLI parsing, server setup, and password generation are in distinct modules.
+- All public functions are small and pure where possible, facilitating unit testing.
+- Logging is performed via the `log` crate with configurable level (`Info` by default).
+
+## Test Coverage Plan
+
+- **Unit tests** for the `Opt` struct parsing (via `clap::Command::debug_assert`).
+- **Password generation** tests that mock `masterpassword_rs::generate_password` to verify the CLI and server correctly forward parameters.
+- **Actix‑Web handler tests** using `actix_web::test` utilities for `index` and `api_generate` endpoints, checking JSON request/response handling and error paths.
+- **TLS configuration tests** ensuring the server fails gracefully when certificate files are missing or invalid.
+- Aim for >90 % line/branch coverage across `main.rs` and `web.rs`.
+
+---
+
 TLS support requires building with the `tls` feature:
 
 ```bash
