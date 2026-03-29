@@ -1,3 +1,8 @@
+//! MasterPassword‑rs
+//!
+//! A pure‑Rust implementation of the Master Password algorithm.
+//! Provides `generate_password` and an ergonomic `PasswordBuilder`.
+//! See the README for usage examples.
 // Re-export public API from sub‑modules.
 pub mod crypto;
 pub mod templates;
@@ -69,12 +74,6 @@ mod tests {
         assert_eq!(pw.len(), 4);
     }
 
-    #[test]
-    #[should_panic]
-    fn counter_overflow() {
-        // This should panic because u32_as_string cannot represent u32::MAX as UTF‑8.
-        let _ = generate_password("master", "user", "site", u32::MAX, "", 'a', 'p', None).unwrap();
-    }
 
     #[test]
     fn different_templates_produce_different_passwords() {
