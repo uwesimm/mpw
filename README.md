@@ -1,6 +1,5 @@
 # MPW (Master Password)
 
-
 A Rust implementation of the Master Password algorithm - a deterministic password generation system where you only need to remember one master password.
 
 ## Features

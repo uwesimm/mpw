@@ -9,6 +9,9 @@ pub mod templates;
 
 pub use crate::crypto::{generate_password, PasswordBuilder};
 
+/// Base URL of the git repository for this crate.
+pub const REPO_URL: &str = "https://github.com/uwesimm/mpw";
+
 #[cfg(test)]
 mod tests {
     use crate::crypto::{generate_password, PasswordBuilder};
