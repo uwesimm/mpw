@@ -137,7 +137,7 @@ fn main() -> Result<()> {
 
         let pw = generate_password(&master_password, &user, &site_name, counter, &opt.context, opt.usage, opt.template, None)?;
 
-        info!("password for user {} and site {} is {}", user, site_name, pw);
+        println!("password for user {} and site {} is {}", user, site_name, pw);
     }
     Ok(())
 }
