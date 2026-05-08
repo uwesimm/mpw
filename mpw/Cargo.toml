@@ -10,7 +10,7 @@ tls = ["actix-web/rustls", "rustls", "rustls-pki-types"]
 
 [dependencies]
 simple_logger = "5.2.0"
-rpassword = "7.4.0"
+rpassword = "7.5.0"
 log = "0.4.22"
 clap = { version = "4.5.60", features = ["derive"] }
 anyhow = "1.0.102"
