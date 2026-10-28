@@ -109,11 +109,11 @@ Generate a password via JSON:
 }
 ```
 
-**Response:**
+**Response** (the actual output for the request above):
 
 ```json
 {
-  "password": "FLCUCf7B7TqqT*7Qdk8&"
+  "password": "u1DebJIANZWAHRMmb52'"
 }
 ```
 
@@ -123,11 +123,12 @@ invalid. `500` is returned only for internal derivation failures; details go to
 the server log, not the response.
 
 Key derivation is expensive by design (~0.5-1 s of CPU, ~32 MiB), so the
-server serializes at most 4 concurrent derivations; additional requests queue.
+server runs at most 4 derivations concurrently; additional requests queue.
 
 ## Password Templates
 
-Example outputs for user `alice`, site `example.com`, counter 1:
+Example outputs for master password `password`, user `alice`, site
+`example.com`, counter 1, usage `a`:
 
 | Template | Length | Example |
 |----------|--------|---------|
@@ -186,7 +187,7 @@ cargo build --release -p mpw --features tls
 - Uses idiomatic Rust error handling with `anyhow`.
 - Separation of concerns: CLI parsing, server setup, and password generation are in distinct modules.
 - CI enforces `cargo fmt --check`, `cargo clippy -D warnings` (including the `tls` feature), and the full test suite.
-- Logging is performed via the `log` crate with configurable level (`Info` by default).
+- Logging is performed via the `log` crate (`Info` level; set in `main.rs`).
 
 ---
 
