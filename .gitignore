@@ -1,6 +1,6 @@
 .idea
 .vscode
 target
-.DS_store
+.DS_Store
 mpw.code-workspace
-
+**/.claude/settings.local.json

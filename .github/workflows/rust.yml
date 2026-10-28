@@ -15,8 +15,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Build
-      run: cargo build --verbose
+    - uses: actions/checkout@v4
+    - name: Install rustfmt and clippy
+      run: rustup component add rustfmt clippy
+    - name: Check formatting
+      run: cargo fmt --all --check
+    - name: Clippy
+      run: cargo clippy --workspace --all-targets -- -D warnings
+    - name: Clippy (TLS feature)
+      run: cargo clippy -p mpw --all-targets --features tls -- -D warnings
+    - name: Build (with TLS)
+      run: cargo build --verbose -p mpw --features tls
     - name: Run tests
       run: cargo test --verbose

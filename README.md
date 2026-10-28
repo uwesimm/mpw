@@ -7,7 +7,7 @@ A Rust implementation of the Master Password algorithm - a deterministic passwor
 - **CLI tool**: Generate passwords from the command line
 - **Web server**: Optional HTTP API for programmatic access
 - **Template support**: Multiple password templates (short, long, passphrase, etc.)
-- **TLS support**: Optional HTTPS for the web server
+- **TLS support**: Optional HTTPS for the web server (build with the `tls` feature)
 - **Environment variable support**: Provide master password via `MPW_MASTER_PASSWORD`
 
 ## Installation
@@ -19,7 +19,7 @@ cargo install --path mpw
 Or from source:
 
 ```bash
-git clone https://github.com/your-repo/mpw
+git clone https://github.com/uwesimm/mpw
 cd mpw
 cargo install --path mpw
 ```
@@ -44,11 +44,10 @@ This will prompt for:
 | Option | Short | Description | Default |
 |--------|-------|-------------|---------|
 | `--template` | `-t` | Template class: `x` (extra), `l` (long), `m` (medium), `s` (short), `n` (name), `b` (basic), `P` (passphrase), `p` (pin) | `x` |
-| `--count` | `-c` | Number of passwords to generate | `1` |
-| `--kind` | `-k` | Usage type: `a` (Authentication), `l` (Login), `r` (Recovery) | `a` |
-| `--context` | `-x` | Optional context string | `""` |
+| `--count` | `-c` | Password counter; increment to rotate a site's password (minimum 1) | `1` |
+| `--kind` | `-k` | Usage type: `a` (Authentication), `i` (Login), `r` (Recovery) | `a` |
+| `--context` | `-x` | Optional context string (used for recovery answers) | `""` |
 | `--user` | `-u` | Username | prompt |
-| `--password` | `-p` | Master password | prompt/env |
 | `--site` | `-s` | Site name | prompt |
 | `--serve` | | Start HTTP server | false |
 | `--bind` | | HTTP server bind address | `127.0.0.1` |
@@ -56,19 +55,23 @@ This will prompt for:
 | `--tls-cert` | | TLS certificate file (PEM) | - |
 | `--tls-key` | | TLS private key file (PEM) | - |
 
+The master password can only be supplied via `MPW_MASTER_PASSWORD` or an
+interactive prompt - never via a command-line flag, because command-line
+arguments are visible to other processes (`ps`, `/proc`).
+
 ### Examples
 
 Generate a short PIN for a specific site:
 
 ```bash
-mpw -k a -s a -t p -u user@example.com -s github.com -p mymasterpassword
+mpw -k a -t p -u user@example.com -s github.com
 ```
 
-Generate a passphrase using environment variable:
+Generate a passphrase using the environment variable:
 
 ```bash
 export MPW_MASTER_PASSWORD="mypass"
-mpw -t P -u alice -p mysite
+mpw -t P -u alice -s mysite
 ```
 
 ### Web Server
@@ -79,10 +82,13 @@ Start the HTTP server:
 mpw --serve --port 8080
 ```
 
-With TLS (requires building with `--features tls`):
+The server binds to `127.0.0.1` by default and refuses to start in plaintext
+mode on a non-loopback address. To serve from other hosts, build with TLS and
+provide a certificate and key:
 
 ```bash
-mpw --serve --port 8080 --tls-cert cert.pem --tls-key key.pem
+cargo build --release -p mpw --features tls
+mpw --serve --port 8443 --tls-cert cert.pem --tls-key key.pem
 ```
 
 #### API
@@ -111,78 +117,82 @@ Generate a password via JSON:
 }
 ```
 
+**Errors:** `400 Bad Request` with a plain-text reason when required fields are
+missing or empty, the counter is below 1, or the usage/template characters are
+invalid. `500` is returned only for internal derivation failures; details go to
+the server log, not the response.
+
+Key derivation is expensive by design (~0.5-1 s of CPU, ~32 MiB), so the
+server serializes at most 4 concurrent derivations; additional requests queue.
+
 ## Password Templates
 
-| Template | Description | Example |
-|----------|-------------|---------|
-| `x` | Extra complex (default) | `FLCUCf7B7TqqT*7Qdk8&` |
-| `l` | Long | `AlpineRiverMountain` |
-| `m` | Medium | `Cobalt5` |
-| `s` | Short | `M4p` |
-| `n` | Name-like | `alexander` |
-| `b` | Basic | `adobe1986` |
-| `P` | Passphrase | `correct-horse-battery` |
-| `p` | Pin | `4829` |
+Example outputs for user `alice`, site `example.com`, counter 1:
+
+| Template | Length | Example |
+|----------|--------|---------|
+| `x` | 20 | `n3[vEGVJs8z1gGXBi2QD` |
+| `l` | 14 | `XofeCesg9*Masa` |
+| `m` | 8 | `Xof1&Dog` |
+| `s` | 4 | `Xof1` |
+| `n` | 9 | `xofdedogu` |
+| `b` | 8 | `nY01Eft8` |
+| `P` | 20 | `xof cesguxeza vare` |
+| `p` | 4 | `9301` |
 
 ## Usage Types
 
 | Type | Description |
 |------|-------------|
 | `a` | Authentication (default) |
-| `l` | Login |
+| `i` | Login |
 | `r` | Recovery question |
 
 ## Building with TLS
 
 ```bash
-cargo build --release --features tls
+cargo build --release -p mpw --features tls
 ```
 
 ---
 
 ## Architecture Overview
 
-- **CLI mode**: Parses command‑line arguments with `clap`, prompts for missing values, calls `masterpassword_rs::generate_password`, and prints the result.
-- **HTTP server mode**: Uses **Actix‑Web** to expose two routes:
-  - `GET /` – serves a static HTML page with a simple password‑generation form.
-  - `POST /api/generate` – accepts a JSON payload and returns a generated password.
+- **CLI mode**: Parses command-line arguments with `clap`, prompts for missing values, calls `masterpassword_rs::generate_password`, and prints the result.
+- **HTTP server mode**: Uses **Actix-Web** to expose two routes:
+  - `GET /` – serves a static HTML page with a simple password-generation form.
+  - `POST /api/generate` – accepts a JSON payload, validates it, and returns a generated password. Derivation runs on a blocking thread, capped by a semaphore.
 - TLS can be enabled via `--tls-cert` and `--tls-key` flags; this requires building with the `tls` Cargo feature.
-- The core password‑generation logic lives in the separate crate `masterpassword_rs` and is reused by both CLI and server paths.
+- The core password-generation logic lives in the separate crate `masterpassword_rs` and is reused by both CLI and server paths.
 
 ## Security Considerations
 
-- **Local‑only default** – the server binds to `127.0.0.1` and does not require authentication. This is sufficient for personal use.
-- **Public exposure** – if the server is ever bound to a public interface, enable TLS (`--features tls`) and consider adding an authentication layer (e.g., HTTP basic auth or a secret token) before exposing the API.
-- **Password handling** – the master password is read from the environment variable `MPW_MASTER_PASSWORD` or via a prompt; it is never written to disk or logged.
-- **Transport security** – when TLS is enabled, the master password and generated passwords travel over an encrypted channel.
-- **Dependency hygiene** – only the following runtime dependencies are used: `actix-web`, `clap`, `simple_logger`, `log`, `rpassword`, `anyhow`, `serde`, and the internal `masterpassword_rs`. No unnecessary crates are pulled in.
+- **Local-only default** - the server binds to `127.0.0.1` and refuses to
+  serve plaintext HTTP on routable interfaces. It does not require
+  authentication, so keep it on loopback or behind TLS plus an authenticating
+  reverse proxy.
+- **Master password handling** - read from `MPW_MASTER_PASSWORD` or a hidden
+  prompt; never accepted via argv, never written to disk or logged.
+- **Transport security** - with TLS, the master password and generated
+  passwords travel over an encrypted channel. Without TLS they travel as
+  plaintext JSON - that is only acceptable on loopback.
+- **Denial of service** - key derivation is intentionally expensive; the
+  server runs at most 4 derivations concurrently and queues the rest.
+- **Same-origin only** - the API sends no CORS headers; browsers from other
+  origins cannot read responses.
 
 ## Code Quality
 
 - Uses idiomatic Rust error handling with `anyhow`.
 - Separation of concerns: CLI parsing, server setup, and password generation are in distinct modules.
-- All public functions are small and pure where possible, facilitating unit testing.
+- CI enforces `cargo fmt --check`, `cargo clippy -D warnings` (including the `tls` feature), and the full test suite.
 - Logging is performed via the `log` crate with configurable level (`Info` by default).
-
-## Test Coverage Plan
-
-- **Unit tests** for the `Opt` struct parsing (via `clap::Command::debug_assert`).
-- **Password generation** tests that mock `masterpassword_rs::generate_password` to verify the CLI and server correctly forward parameters.
-- **Actix‑Web handler tests** using `actix_web::test` utilities for `index` and `api_generate` endpoints, checking JSON request/response handling and error paths.
-- **TLS configuration tests** ensuring the server fails gracefully when certificate files are missing or invalid.
-- Aim for >90 % line/branch coverage across `main.rs` and `web.rs`.
 
 ---
 
-TLS support requires building with the `tls` feature:
-
-```bash
-cargo build --release --features tls
-```
-
 ## Master Password Algorithm
 
-This implementation follows the [Master Password algorithm](hhttps://en.wikipedia.org/wiki/Master_Password_(algorithm)) developed by  Maarten Billemont. The algorithm generates the same password every time for the same combination of:
+This implementation follows the [Master Password algorithm](https://en.wikipedia.org/wiki/Master_Password_(algorithm)) developed by Maarten Billemont. The algorithm generates the same password every time for the same combination of:
 - Master password
 - User identifier
 - Site name
@@ -190,6 +200,12 @@ This implementation follows the [Master Password algorithm](hhttps://en.wikipedi
 - Context string
 
 This means you can regenerate the same password for a site anytime without storing it.
+
+The implementation is interoperable with official clients: length and counter
+prefixes are raw big-endian bytes, verified against reference test vectors
+(including the official self-test vector). Note that this implementation does
+not yet apply the spec's IDNA/NFC input normalization, so enter names and site
+names exactly as the other clients would normalize them.
 
 ## License
 
