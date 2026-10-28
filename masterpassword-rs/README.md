@@ -27,7 +27,7 @@ use masterpassword_rs::PasswordBuilder;
 let pw = PasswordBuilder::new("my‑master‑pw", "alice", "example.com")
     .counter(1)
     .usage('a')
-    .template('x')
+    .template_char('x')
     .build()
     .expect("password generation failed");
 ```

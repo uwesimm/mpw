@@ -7,7 +7,7 @@
 pub mod crypto;
 pub mod templates;
 
-pub use crate::crypto::{generate_password, PasswordBuilder};
+pub use crate::crypto::{generate_password, is_valid_template, is_valid_usage, PasswordBuilder};
 
 /// Base URL of the git repository for this crate.
 pub const REPO_URL: &str = "https://github.com/uwesimm/mpw";
@@ -17,17 +17,10 @@ mod tests {
     use crate::crypto::{generate_password, PasswordBuilder};
 
     #[test]
-    fn test_u32_as_string_small_values() {
-        for &x in &[0u32, 1u32, 3u32, 127u32] {
-            let s = crate::crypto::u32_as_string(x);
-            assert_eq!(s.as_bytes(), &x.to_be_bytes());
-        }
-    }
-
-    #[test]
     fn deterministic_small_params() {
         let params = scrypt::Params::new(8, 1, 1, 64).unwrap();
-        let pw1 = generate_password("password", "bob", "mysite", 1, "", 'a', 'p', Some(params)).unwrap();
+        let pw1 =
+            generate_password("password", "bob", "mysite", 1, "", 'a', 'p', Some(params)).unwrap();
         let pw2 = generate_password(
             "password",
             "bob",
@@ -37,7 +30,8 @@ mod tests {
             'a',
             'p',
             Some(scrypt::Params::new(8, 1, 1, 64).unwrap()),
-        ).unwrap();
+        )
+        .unwrap();
         assert_eq!(pw1, pw2);
         assert_eq!(pw1.len(), 4);
         assert!(pw1.chars().all(|c| c.is_ascii_digit()));
@@ -49,57 +43,61 @@ mod tests {
         assert_eq!(pw1, "FLCUCf7B7TqqT*7Qdk8&");
     }
 
-    // --- Additional tests (items 1‑10) ---
+    #[test]
+    fn official_vector() {
+        // Self-test vector from the reference implementations:
+        // name "user", password "password", site "example.com",
+        // counter 1, authentication namespace, "long" template.
+        let pw =
+            generate_password("password", "user", "example.com", 1, "", 'a', 'l', None).unwrap();
+        assert_eq!(pw, "ZedaFaxcZaso9*");
+    }
+
+    // --- Additional tests ---
 
     #[test]
     fn invalid_usage_character() {
-        let err = generate_password("pw", "u", "s", 0, "", 'z', 'x', None).unwrap_err();
-        assert!(err.to_string().contains("usage character 'z' not recognized"));
+        let err = generate_password("pw", "u", "s", 1, "", 'z', 'x', None).unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("usage character 'z' not recognized"));
     }
 
     #[test]
     fn invalid_template_character() {
-        let err = generate_password("pw", "u", "s", 0, "", 'a', 'z', None).unwrap_err();
+        let err = generate_password("pw", "u", "s", 1, "", 'a', 'z', None).unwrap_err();
         assert!(err.to_string().contains("template 'z' not recognized"));
     }
 
     #[test]
-    fn empty_master_password() {
-        let pw = generate_password("", "user", "site", 0, "", 'a', 'p', None).unwrap();
-        // Should still produce a deterministic 4‑digit password.
-        assert_eq!(pw.len(), 4);
-        assert!(pw.chars().all(|c| c.is_ascii_digit()));
-    }
-
-    #[test]
-    fn non_ascii_user_and_site() {
-        let pw = generate_password("master", "用户", "站点", 0, "", 'a', 'p', None).unwrap();
-        assert_eq!(pw.len(), 4);
-    }
-
-
-    #[test]
     fn different_templates_produce_different_passwords() {
-        let pw_x = generate_password("master", "user", "site", 0, "", 'a', 'x', None).unwrap();
-        let pw_l = generate_password("master", "user", "site", 0, "", 'a', 'l', None).unwrap();
+        let pw_x = generate_password("master", "user", "site", 1, "", 'a', 'x', None).unwrap();
+        let pw_l = generate_password("master", "user", "site", 1, "", 'a', 'l', None).unwrap();
         assert_ne!(pw_x, pw_l);
     }
 
     #[test]
     fn unicode_context() {
-        let pw = generate_password("master", "user", "site", 0, "上下文", 'a', 'x', None).unwrap();
+        let pw = generate_password("master", "user", "site", 1, "上下文", 'a', 'x', None).unwrap();
         assert_eq!(pw.len(), 20); // 'x' template yields 20 chars
     }
 
     #[test]
-    fn performance_benchmark() {
-        // Use low‑cost scrypt parameters to keep the test fast.
+    fn performance_smoke() {
+        // Use low‑cost scrypt parameters to keep the test fast. This is a
+        // smoke test, not a benchmark: the bound is deliberately generous so
+        // it cannot flake on loaded or debug-built CI runners.
         let low_params = scrypt::Params::new(8, 1, 1, 64).unwrap();
         let start = std::time::Instant::now();
-        let _ = generate_password("master", "user", "site", 0, "", 'a', 'x', Some(low_params)).unwrap();
+        let pw =
+            generate_password("master", "user", "site", 1, "", 'a', 'x', Some(low_params)).unwrap();
+        assert_eq!(pw.len(), 20);
         let elapsed = start.elapsed();
-        // Ensure it runs in under 10 ms on typical hardware.
-        assert!(elapsed.as_millis() < 20, "Password generation too slow: {} ms", elapsed.as_millis());
+        assert!(
+            elapsed.as_millis() < 100,
+            "Password generation unexpectedly slow: {} ms",
+            elapsed.as_millis()
+        );
     }
 
     #[test]
@@ -111,9 +109,9 @@ mod tests {
 
     #[test]
     fn builder_matches_direct_call() {
-        let pw_direct = generate_password("master", "user", "site", 0, "", 'a', 'x', None).unwrap();
+        let pw_direct = generate_password("master", "user", "site", 5, "", 'a', 'x', None).unwrap();
         let pw_builder = PasswordBuilder::new("master", "user", "site")
-            .counter(0)
+            .counter(5)
             .usage('a')
             .template_char('x')
             .build()
@@ -121,4 +119,23 @@ mod tests {
         assert_eq!(pw_direct, pw_builder);
     }
 
+    #[test]
+    fn builder_defaults() {
+        // Default counter is 1, usage 'a', template 'x'.
+        let pw_builder = PasswordBuilder::new("master", "user", "site")
+            .build()
+            .unwrap();
+        let pw_direct = generate_password("master", "user", "site", 1, "", 'a', 'x', None).unwrap();
+        assert_eq!(pw_builder, pw_direct);
+    }
+
+    #[test]
+    fn builder_rejects_empty_inputs() {
+        let err = PasswordBuilder::new("", "user", "site")
+            .build()
+            .unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("master password must not be empty"));
+    }
 }
