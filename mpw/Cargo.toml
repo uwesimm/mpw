@@ -1,12 +1,15 @@
 [package]
 name = "mpw"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Uwe Simm <uwe.simm@gmx.net>"]
 edition = "2021"
+license = "MIT"
+description = "Command-line and HTTP password generator implementing the Master Password algorithm"
+repository = "https://github.com/uwesimm/mpw"
 
 [features]
 default = []
-tls = ["actix-web/rustls", "rustls", "rustls-pki-types"]
+tls = ["actix-web/rustls-0_23", "rustls", "rustls-pki-types"]
 
 [dependencies]
 simple_logger = "5.2.0"
@@ -17,8 +20,9 @@ anyhow = "1.0.102"
 actix-web = { version = "4.13.0", default-features = false, features = ["macros"] }
 masterpassword-rs = { path = "../masterpassword-rs" }
 serde = { version = "1.0", features = ["derive"] }
-rustls = { version = "0.23", optional = true, default-features = false }
-rustls-pki-types = { version = "1", optional = true }
+tokio = { version = "1", features = ["sync"] }
+rustls = { version = "0.23", optional = true }
+rustls-pki-types = { version = "1", optional = true, features = ["std"] }
 
 [dev-dependencies]
 assert_cmd = "2"
